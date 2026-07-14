@@ -1,117 +1,241 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import CategoryChart from "@/components/CategoryChart";
+import EditMovementModal from "@/components/EditMovementModal";
+import { Header } from "@/components/Header";
+import {
+  PeriodFilter,
+  type Periodo,
+} from "@/components/PeriodFilter";
+import { SearchBar } from "@/components/SearchBar";
+import { SummaryCard } from "@/components/SummaryCard";
+import TransactionList from "@/components/TransactionList";
+import { useMovements } from "@/hooks/useMovements";
+import type { Movimiento } from "@/types/movement";
+import { formatoMoneda } from "@/utils/money";
+import { useState } from "react";
 
-type Movimiento = {
-  id: number;
-  descripcion: string;
-  monto: number;
-  tipo: "gasto" | "ingreso";
-};
 
 export default function Home() {
   const [texto, setTexto] = useState("");
-  const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
-useEffect(() => {
-  const guardados = localStorage.getItem("bocha-cash-movimientos");
+  const [busqueda, setBusqueda] = useState("");
+  const [periodo, setPeriodo] = useState<Periodo>("todo");
+  const [movimientoEnEdicion, setMovimientoEnEdicion] =
+    useState<Movimiento | null>(null);
 
-  if (guardados) {
-    setMovimientos(JSON.parse(guardados));
-  }
-}, []);
+  const {
+    movimientos,
+    agregarMovimiento,
+    editarMovimiento,
+    eliminarMovimiento,
+  } = useMovements();
 
-useEffect(() => {
-  localStorage.setItem("bocha-cash-movimientos", JSON.stringify(movimientos));
-}, [movimientos]);
-  const ingresos = movimientos
-    .filter((m) => m.tipo === "ingreso")
-    .reduce((acc, m) => acc + m.monto, 0);
+  const movimientosFiltrados = movimientos.filter((movimiento) => {
+    const textoBusqueda = busqueda.trim().toLowerCase();
 
-  const gastos = movimientos
-    .filter((m) => m.tipo === "gasto")
-    .reduce((acc, m) => acc + m.monto, 0);
+    const coincideBusqueda =
+      !textoBusqueda ||
+      movimiento.descripcion.toLowerCase().includes(textoBusqueda) ||
+      (movimiento.categoria || "")
+        .toLowerCase()
+        .includes(textoBusqueda) ||
+      (movimiento.medioPago || "")
+        .toLowerCase()
+        .includes(textoBusqueda);
 
-  const saldo = ingresos - gastos;
+    if (!coincideBusqueda) {
+      return false;
+    }
 
-  function detectarMonto(texto: string) {
-    const numero = texto.replace(/\./g, "").match(/\d+/);
-    return numero ? Number(numero[0]) : 0;
-  }
+    if (periodo === "todo") {
+      return true;
+    }
 
-  function agregarMovimiento() {
-    if (!texto.trim()) return;
+    if (!movimiento.fecha) {
+      return false;
+    }
 
-    const monto = detectarMonto(texto);
-    if (monto === 0) {
+    const fechaMovimiento = new Date(movimiento.fecha);
+    const hoy = new Date();
+
+    if (Number.isNaN(fechaMovimiento.getTime())) {
+      return false;
+    }
+
+    if (periodo === "hoy") {
+      return fechaMovimiento.toDateString() === hoy.toDateString();
+    }
+
+    if (periodo === "semana") {
+      const haceSieteDias = new Date();
+
+      haceSieteDias.setHours(0, 0, 0, 0);
+      haceSieteDias.setDate(hoy.getDate() - 7);
+
+      return fechaMovimiento >= haceSieteDias && fechaMovimiento <= hoy;
+    }
+
+    if (periodo === "mes") {
+      return (
+        fechaMovimiento.getMonth() === hoy.getMonth() &&
+        fechaMovimiento.getFullYear() === hoy.getFullYear()
+      );
+    }
+
+    if (periodo === "anio") {
+      return fechaMovimiento.getFullYear() === hoy.getFullYear();
+    }
+
+    return true;
+  });
+
+  const ingresosFiltrados = movimientosFiltrados
+    .filter((movimiento) => movimiento.tipo === "ingreso")
+    .reduce(
+      (acumulado, movimiento) => acumulado + movimiento.monto,
+      0
+    );
+
+  const gastosFiltrados = movimientosFiltrados
+    .filter((movimiento) => movimiento.tipo === "gasto")
+    .reduce(
+      (acumulado, movimiento) => acumulado + movimiento.monto,
+      0
+    );
+
+  const saldoFiltrado = ingresosFiltrados - gastosFiltrados;
+
+  const datosGrafico = Object.values(
+    movimientosFiltrados
+      .filter((movimiento) => movimiento.tipo === "gasto")
+      .reduce(
+        (acumulado, movimiento) => {
+          const categoria = movimiento.categoria || "Otros";
+
+          if (!acumulado[categoria]) {
+            acumulado[categoria] = {
+              categoria,
+              total: 0,
+            };
+          }
+
+          acumulado[categoria].total += movimiento.monto;
+
+          return acumulado;
+        },
+        {} as Record<
+          string,
+          {
+            categoria: string;
+            total: number;
+          }
+        >
+      )
+  );
+
+  function enviarMovimiento() {
+    if (!texto.trim()) {
+      return;
+    }
+
+    const guardado = agregarMovimiento(texto);
+
+    if (!guardado) {
       alert("No pude detectar el monto. Probá: Gasté 5500 en carne");
       return;
     }
 
-    const esIngreso =
-      texto.toLowerCase().includes("cobre") ||
-      texto.toLowerCase().includes("cobré") ||
-      texto.toLowerCase().includes("sueldo") ||
-      texto.toLowerCase().includes("ingreso");
-
-    const nuevo: Movimiento = {
-      id: Date.now(),
-      descripcion: texto,
-      monto,
-      tipo: esIngreso ? "ingreso" : "gasto",
-    };
-
-    setMovimientos([nuevo, ...movimientos]);
     setTexto("");
   }
 
-  function formato(n: number) {
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-      maximumFractionDigits: 0,
-    }).format(n);
+  function confirmarEliminacion(id: number) {
+    const confirmado = window.confirm(
+      "¿Seguro que querés eliminar este movimiento?"
+    );
+
+    if (!confirmado) {
+      return;
+    }
+
+    eliminarMovimiento(id);
+
+    if (movimientoEnEdicion?.id === id) {
+      setMovimientoEnEdicion(null);
+    }
+  }
+
+  function guardarEdicion(movimientoActualizado: Movimiento) {
+    const { id, ...cambios } = movimientoActualizado;
+
+    editarMovimiento(id, cambios);
+    setMovimientoEnEdicion(null);
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-6 py-8">
+    <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
       <div className="mx-auto max-w-6xl">
-        <header className="mb-10 flex items-center justify-between">
-          <div>
-            <p className="text-emerald-400 font-bold">BC</p>
-            <h1 className="text-4xl font-bold">Bocha Cash</h1>
-            <p className="text-slate-400 mt-2">Tu plata, clara.</p>
-          </div>
+        <Header />
 
-          <button className="rounded-2xl bg-emerald-500 px-6 py-3 font-bold text-slate-950">
-            + Nuevo movimiento
-          </button>
-        </header>
+        <PeriodFilter
+          periodo={periodo}
+          onChange={setPeriodo}
+        />
+
+        <div className="mb-6">
+          <SearchBar
+            valor={busqueda}
+            onChange={setBusqueda}
+          />
+        </div>
 
         <section className="grid gap-5 md:grid-cols-3">
-          <Card titulo="Saldo estimado" valor={formato(saldo)} />
-          <Card titulo="Ingresos" valor={formato(ingresos)} color="text-emerald-400" />
-          <Card titulo="Gastos" valor={formato(gastos)} color="text-red-400" />
+          <SummaryCard
+            titulo="Saldo estimado"
+            valor={formatoMoneda(saldoFiltrado)}
+          />
+
+          <SummaryCard
+            titulo="Ingresos"
+            valor={formatoMoneda(ingresosFiltrados)}
+            color="text-emerald-400"
+          />
+
+          <SummaryCard
+            titulo="Gastos"
+            valor={formatoMoneda(gastosFiltrados)}
+            color="text-red-400"
+          />
         </section>
 
         <section className="mt-8 grid gap-5 md:grid-cols-2">
           <div className="rounded-3xl bg-slate-900 p-6">
-            <h3 className="text-2xl font-bold">Cargar como WhatsApp</h3>
-            <p className="mt-2 text-slate-400">Ejemplo: “Gasté 5500 en carne”</p>
+            <h3 className="text-2xl font-bold">
+              Cargar como WhatsApp
+            </h3>
+
+            <p className="mt-2 text-slate-400">
+              Ejemplo: “Gasté 5500 en carne”
+            </p>
 
             <div className="mt-6 flex gap-3">
               <input
                 value={texto}
-                onChange={(e) => setTexto(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") agregarMovimiento();
+                onChange={(evento) =>
+                  setTexto(evento.target.value)
+                }
+                onKeyDown={(evento) => {
+                  if (evento.key === "Enter") {
+                    enviarMovimiento();
+                  }
                 }}
-                className="w-full rounded-2xl bg-slate-800 px-4 py-3 outline-none"
+                className="w-full rounded-2xl bg-slate-800 px-4 py-3 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500"
                 placeholder="Escribí un gasto..."
               />
 
               <button
-                onClick={agregarMovimiento}
-                className="rounded-2xl bg-emerald-500 px-5 font-bold text-slate-950"
+                type="button"
+                onClick={enviarMovimiento}
+                className="rounded-2xl bg-emerald-500 px-5 font-bold text-slate-950 transition hover:bg-emerald-400"
               >
                 Enviar
               </button>
@@ -119,57 +243,39 @@ useEffect(() => {
           </div>
 
           <div className="rounded-3xl bg-slate-900 p-6">
-            <h3 className="text-2xl font-bold">Lectura inteligente</h3>
+            <h3 className="text-2xl font-bold">
+              Bocha dice
+            </h3>
+
             <p className="mt-4 text-slate-400">
-              {movimientos.length === 0
-                ? "Todavía no hay movimientos."
-                : `Ya cargaste ${movimientos.length} movimientos. Tus gastos van en ${formato(gastos)}.`}
+              {movimientosFiltrados.length === 0
+                ? "No hay movimientos para este filtro."
+                : `Encontré ${
+                    movimientosFiltrados.length
+                  } movimientos. Tus gastos son ${formatoMoneda(
+                    gastosFiltrados
+                  )}.`}
             </p>
           </div>
         </section>
 
-        <section className="mt-8 rounded-3xl bg-slate-900 p-6">
-          <h3 className="text-2xl font-bold">Últimos movimientos</h3>
-
-          {movimientos.length === 0 ? (
-            <p className="mt-4 text-slate-400">No hay movimientos cargados.</p>
-          ) : (
-            <div className="mt-5 space-y-3">
-              {movimientos.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex items-center justify-between rounded-2xl bg-slate-800 p-4"
-                >
-                  <div>
-                    <p className="font-bold">{m.descripcion}</p>
-                    <p className="text-sm text-slate-400">{m.tipo}</p>
-                  </div>
-                  <p className={m.tipo === "ingreso" ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>
-                    {formato(m.monto)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
+        <section className="mt-8">
+          <CategoryChart data={datosGrafico} />
         </section>
-      </div>
-    </main>
-  );
-}
 
-function Card({
-  titulo,
-  valor,
-  color = "text-white",
-}: {
-  titulo: string;
-  valor: string;
-  color?: string;
-}) {
-  return (
-    <div className="rounded-3xl bg-slate-900 p-6">
-      <p className="text-slate-400">{titulo}</p>
-      <h2 className={`mt-3 text-3xl font-bold ${color}`}>{valor}</h2>
-    </div>
+        <TransactionList
+          movimientos={movimientosFiltrados}
+          onDelete={confirmarEliminacion}
+          onEdit={setMovimientoEnEdicion}
+        />
+      </div>
+
+      <EditMovementModal
+        abierto={movimientoEnEdicion !== null}
+        movimiento={movimientoEnEdicion}
+        onClose={() => setMovimientoEnEdicion(null)}
+        onSave={guardarEdicion}
+      />
+    </main>
   );
 }
