@@ -1,6 +1,12 @@
 "use client";
 
-import { Bot, Home, List, Target } from "lucide-react";
+import {
+  Bot,
+  Home,
+  List,
+  Target,
+} from "lucide-react";
+import type { ReactNode } from "react";
 
 export type Pestana =
   | "inicio"
@@ -13,11 +19,13 @@ type Props = {
   onChange: (pestana: Pestana) => void;
 };
 
-const items: {
+type ItemNavegacion = {
   id: Pestana;
   label: string;
-  icono: React.ReactNode;
-}[] = [
+  icono: ReactNode;
+};
+
+const items: ItemNavegacion[] = [
   {
     id: "inicio",
     label: "Inicio",
@@ -45,8 +53,8 @@ export default function MobileNavigation({
   onChange,
 }: Props) {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-slate-950/95 px-3 py-2 backdrop-blur md:hidden">
-      <div className="mx-auto grid max-w-md grid-cols-4 gap-2">
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-800 bg-slate-950/95 px-2 py-2 backdrop-blur">
+      <div className="mx-auto grid max-w-2xl grid-cols-4 gap-1">
         {items.map((item) => {
           const seleccionada = item.id === activa;
 
@@ -55,14 +63,17 @@ export default function MobileNavigation({
               key={item.id}
               type="button"
               onClick={() => onChange(item.id)}
-              className={`flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-xs font-semibold transition ${
+              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-xs font-semibold transition ${
                 seleccionada
                   ? "bg-emerald-500 text-slate-950"
                   : "text-slate-400 hover:bg-slate-800 hover:text-white"
               }`}
             >
               {item.icono}
-              <span>{item.label}</span>
+
+              <span className="max-w-full truncate">
+                {item.label}
+              </span>
             </button>
           );
         })}
