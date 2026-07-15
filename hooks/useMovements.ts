@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Movimiento } from "@/types/movement";
+import type { Movimiento } from "@/types/movement";
+import { detectarDescripcion } from "@/utils/merchantDetector";
 import {
   detectarMonto,
   detectarTipo,
@@ -29,12 +30,19 @@ export function useMovements() {
         throw new Error("Formato inválido");
       }
 
-      const movimientosNormalizados: Movimiento[] = datos.map((m) => ({
-        ...m,
-        categoria: m.categoria || "Otros",
-        medioPago: m.medioPago || "Sin especificar",
-        fecha: m.fecha || new Date(m.id || Date.now()).toISOString(),
-      }));
+      const movimientosNormalizados: Movimiento[] = datos.map(
+        (movimiento) => ({
+          ...movimiento,
+          categoria: movimiento.categoria || "Otros",
+          medioPago:
+            movimiento.medioPago || "No especificado",
+          fecha:
+            movimiento.fecha ||
+            new Date(
+              movimiento.id || Date.now()
+            ).toISOString(),
+        })
+      );
 
       setMovimientos(movimientosNormalizados);
     } catch {
@@ -46,19 +54,26 @@ export function useMovements() {
   }, []);
 
   useEffect(() => {
-    if (!cargado) return;
+    if (!cargado) {
+      return;
+    }
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(movimientos));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(movimientos)
+    );
   }, [movimientos, cargado]);
 
   function agregarMovimiento(texto: string) {
     const monto = detectarMonto(texto);
 
-    if (monto === 0) return false;
+    if (monto === 0) {
+      return false;
+    }
 
     const nuevo: Movimiento = {
       id: Date.now(),
-      descripcion: texto,
+      descripcion: detectarDescripcion(texto),
       monto,
       tipo: detectarTipo(texto),
       categoria: detectarCategoria(texto),
@@ -66,7 +81,10 @@ export function useMovements() {
       fecha: new Date().toISOString(),
     };
 
-    setMovimientos((prev) => [nuevo, ...prev]);
+    setMovimientos((anteriores) => [
+      nuevo,
+      ...anteriores,
+    ]);
 
     return true;
   }
@@ -75,8 +93,8 @@ export function useMovements() {
     id: number,
     cambios: Partial<Omit<Movimiento, "id">>
   ) {
-    setMovimientos((prev) =>
-      prev.map((movimiento) =>
+    setMovimientos((anteriores) =>
+      anteriores.map((movimiento) =>
         movimiento.id === id
           ? {
               ...movimiento,
@@ -88,18 +106,28 @@ export function useMovements() {
   }
 
   function eliminarMovimiento(id: number) {
-    setMovimientos((prev) =>
-      prev.filter((movimiento) => movimiento.id !== id)
+    setMovimientos((anteriores) =>
+      anteriores.filter(
+        (movimiento) => movimiento.id !== id
+      )
     );
   }
 
   const ingresos = movimientos
-    .filter((m) => m.tipo === "ingreso")
-    .reduce((acc, m) => acc + m.monto, 0);
+    .filter((movimiento) => movimiento.tipo === "ingreso")
+    .reduce(
+      (acumulado, movimiento) =>
+        acumulado + movimiento.monto,
+      0
+    );
 
   const gastos = movimientos
-    .filter((m) => m.tipo === "gasto")
-    .reduce((acc, m) => acc + m.monto, 0);
+    .filter((movimiento) => movimiento.tipo === "gasto")
+    .reduce(
+      (acumulado, movimiento) =>
+        acumulado + movimiento.monto,
+      0
+    );
 
   const saldo = ingresos - gastos;
 

@@ -1,7 +1,8 @@
 "use client";
 
-import type { FinancialAnalysis } from "@/engine/financialEngine";
 import { responderPregunta } from "@/engine/chatEngine";
+import type { FinancialAnalysis } from "@/engine/financialEngine";
+import type { Movimiento } from "@/types/movement";
 import { Bot, Send } from "lucide-react";
 import { useState } from "react";
 
@@ -13,16 +14,20 @@ type Mensaje = {
 
 type Props = {
   analisis: FinancialAnalysis;
+  movimientos: Movimiento[];
 };
 
-export default function BochaChat({ analisis }: Props) {
+export default function BochaChat({
+  analisis,
+  movimientos,
+}: Props) {
   const [pregunta, setPregunta] = useState("");
   const [mensajes, setMensajes] = useState<Mensaje[]>([
     {
       id: 1,
       autor: "bocha",
       texto:
-        "Hola Emma 👋 Preguntame por tu saldo, gastos, ingresos, categoría principal, mayor gasto o promedio diario.",
+        "Hola Emma 👋 Preguntame por tu saldo, gastos, categorías, medios de pago, mayor gasto o dónde podrías ahorrar.",
     },
   ]);
 
@@ -39,7 +44,11 @@ export default function BochaChat({ analisis }: Props) {
       texto,
     };
 
-    const respuesta = responderPregunta(texto, analisis);
+    const respuesta = responderPregunta(
+      texto,
+      analisis,
+      movimientos
+    );
 
     const mensajeBocha: Mensaje = {
       id: Date.now() + 1,
@@ -64,10 +73,12 @@ export default function BochaChat({ analisis }: Props) {
         </div>
 
         <div>
-          <h2 className="text-2xl font-bold">Preguntale a Bocha</h2>
+          <h2 className="text-2xl font-bold">
+            Preguntale a Bocha
+          </h2>
 
           <p className="mt-1 text-sm text-slate-400">
-            Consultá tus números usando lenguaje natural.
+            Consultá tus movimientos usando lenguaje natural.
           </p>
         </div>
       </div>
@@ -83,7 +94,9 @@ export default function BochaChat({ analisis }: Props) {
             }
           >
             <p className="text-sm font-semibold">
-              {mensaje.autor === "usuario" ? "Vos" : "Bocha"}
+              {mensaje.autor === "usuario"
+                ? "Vos"
+                : "Bocha"}
             </p>
 
             <p className="mt-1">{mensaje.texto}</p>
@@ -94,13 +107,15 @@ export default function BochaChat({ analisis }: Props) {
       <div className="mt-5 flex gap-3">
         <input
           value={pregunta}
-          onChange={(evento) => setPregunta(evento.target.value)}
+          onChange={(evento) =>
+            setPregunta(evento.target.value)
+          }
           onKeyDown={(evento) => {
             if (evento.key === "Enter") {
               enviarPregunta();
             }
           }}
-          placeholder="Ejemplo: ¿Cuál fue mi mayor gasto?"
+          placeholder="Ejemplo: ¿Cuánto gasté en servicios?"
           className="w-full rounded-2xl bg-slate-800 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500"
         />
 
@@ -116,10 +131,10 @@ export default function BochaChat({ analisis }: Props) {
 
       <div className="mt-4 flex flex-wrap gap-2">
         {[
-          "¿Cuál es mi saldo?",
-          "¿Cuánto gasté?",
+          "¿Cuánto gasté en Servicios?",
+          "¿Cuánto pagué con Mercado Pago?",
+          "¿Dónde puedo ahorrar?",
           "¿Cuál fue mi mayor gasto?",
-          "¿Qué categoría gasto más?",
         ].map((ejemplo) => (
           <button
             key={ejemplo}
