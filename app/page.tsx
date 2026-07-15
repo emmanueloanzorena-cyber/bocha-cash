@@ -10,6 +10,9 @@ import EditMovementModal from "@/components/EditMovementModal";
 import Goals from "@/components/Goals";
 import GoalsManager from "@/components/GoalsManager";
 import { Header } from "@/components/Header";
+import MobileNavigation, {
+  type Pestana,
+} from "@/components/MobileNavigation";
 import {
   PeriodFilter,
   type Periodo,
@@ -31,6 +34,9 @@ export default function Home() {
   const [texto, setTexto] = useState("");
   const [busqueda, setBusqueda] = useState("");
   const [periodo, setPeriodo] = useState<Periodo>("todo");
+  const [pestanaActiva, setPestanaActiva] =
+    useState<Pestana>("inicio");
+
   const [movimientoEnEdicion, setMovimientoEnEdicion] =
     useState<Movimiento | null>(null);
 
@@ -163,97 +169,164 @@ export default function Home() {
     setMovimientoEnEdicion(null);
   }
 
+  const contenidoInicio = (
+    <>
+      <DashboardCards
+        saldo={formatoMoneda(analisis.saldo)}
+        ingresos={formatoMoneda(analisis.ingresos)}
+        gastos={formatoMoneda(analisis.gastos)}
+      />
+
+      <Dashboard
+        texto={texto}
+        onTextoChange={setTexto}
+        onEnviar={enviarMovimiento}
+        gastos={analisis.gastos}
+        cantidadMovimientos={analisis.cantidadMovimientos}
+        categorias={analisis.categorias}
+        medioPagoPrincipal={analisis.medioPagoPrincipal}
+      />
+
+      <StatsPanel
+        movimientos={movimientosFiltrados}
+        gastos={analisis.gastos}
+        categorias={analisis.categorias}
+        medioPagoPrincipal={analisis.medioPagoPrincipal}
+      />
+
+      <AnalyticsPanel analytics={analytics} />
+
+      <section className="mt-8">
+        <CategoryChart data={analisis.categorias} />
+      </section>
+    </>
+  );
+
+  const contenidoMovimientos = (
+    <>
+      <div className="mb-6">
+        <SearchBar
+          valor={busqueda}
+          onChange={setBusqueda}
+        />
+      </div>
+
+      <PeriodFilter
+        periodo={periodo}
+        onChange={setPeriodo}
+      />
+
+      <TransactionList
+        movimientos={movimientosFiltrados}
+        onDelete={confirmarEliminacion}
+        onEdit={setMovimientoEnEdicion}
+      />
+    </>
+  );
+
+  const contenidoObjetivos = (
+    <>
+      <Goals goals={progresoObjetivos} />
+
+      <GoalsManager
+        objetivos={objetivos}
+        onAgregar={agregarObjetivo}
+        onEditar={editarObjetivo}
+        onEliminar={eliminarObjetivo}
+      />
+    </>
+  );
+
+  const contenidoBocha = (
+    <>
+      <BochaCopilot insights={insights} />
+
+      <BochaChat
+        analisis={analisis}
+        movimientos={movimientosFiltrados}
+      />
+
+      <section className="mt-8 rounded-3xl bg-slate-900 p-6">
+        <h3 className="text-2xl font-bold">
+          Consejos de Bocha
+        </h3>
+
+        {analisis.consejos.length === 0 ? (
+          <p className="mt-4 text-slate-400">
+            Todavía no hay consejos disponibles.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {analisis.consejos.map((consejo) => (
+              <div
+                key={consejo}
+                className="rounded-2xl bg-slate-800 p-4 text-slate-300"
+              >
+                {consejo}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </>
+  );
+
+  function renderizarPestanaMovil() {
+    if (pestanaActiva === "movimientos") {
+      return contenidoMovimientos;
+    }
+
+    if (pestanaActiva === "objetivos") {
+      return contenidoObjetivos;
+    }
+
+    if (pestanaActiva === "bocha") {
+      return contenidoBocha;
+    }
+
+    return contenidoInicio;
+  }
+
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
+    <main className="min-h-screen bg-slate-950 px-4 py-6 pb-28 text-white sm:px-6 sm:py-8 md:pb-8">
       <div className="mx-auto max-w-6xl">
         <Header />
 
-        <PeriodFilter
-          periodo={periodo}
-          onChange={setPeriodo}
-        />
-
-        <div className="mb-6">
-          <SearchBar
-            valor={busqueda}
-            onChange={setBusqueda}
-          />
+        {/* Vista móvil: una pestaña por vez */}
+        <div className="md:hidden">
+          {renderizarPestanaMovil()}
         </div>
 
-        <DashboardCards
-          saldo={formatoMoneda(analisis.saldo)}
-          ingresos={formatoMoneda(analisis.ingresos)}
-          gastos={formatoMoneda(analisis.gastos)}
-        />
+        {/* Vista de escritorio: dashboard completo */}
+        <div className="hidden md:block">
+          <PeriodFilter
+            periodo={periodo}
+            onChange={setPeriodo}
+          />
 
-        <Dashboard
-          texto={texto}
-          onTextoChange={setTexto}
-          onEnviar={enviarMovimiento}
-          gastos={analisis.gastos}
-          cantidadMovimientos={analisis.cantidadMovimientos}
-          categorias={analisis.categorias}
-          medioPagoPrincipal={analisis.medioPagoPrincipal}
-        />
+          <div className="mb-6">
+            <SearchBar
+              valor={busqueda}
+              onChange={setBusqueda}
+            />
+          </div>
 
-        <StatsPanel
-          movimientos={movimientosFiltrados}
-          gastos={analisis.gastos}
-          categorias={analisis.categorias}
-          medioPagoPrincipal={analisis.medioPagoPrincipal}
-        />
+          {contenidoInicio}
+          {contenidoObjetivos}
+          {contenidoBocha}
 
-        <AnalyticsPanel analytics={analytics} />
-
-        <Goals goals={progresoObjetivos} />
-
-        <GoalsManager
-          objetivos={objetivos}
-          onAgregar={agregarObjetivo}
-          onEditar={editarObjetivo}
-          onEliminar={eliminarObjetivo}
-        />
-
-        <section className="mt-8">
-          <CategoryChart data={analisis.categorias} />
-        </section>
-
-        <BochaCopilot insights={insights} />
-
-        <BochaChat
-          analisis={analisis}
-          movimientos={movimientosFiltrados}
-        />
-
-        <section className="mt-8 rounded-3xl bg-slate-900 p-6">
-          <h3 className="text-2xl font-bold">
-            Consejos de Bocha
-          </h3>
-
-          {analisis.consejos.length === 0 ? (
-            <p className="mt-4 text-slate-400">
-              Todavía no hay consejos disponibles.
-            </p>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {analisis.consejos.map((consejo) => (
-                <div
-                  key={consejo}
-                  className="rounded-2xl bg-slate-800 p-4 text-slate-300"
-                >
-                  {consejo}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <TransactionList
-          movimientos={movimientosFiltrados}
-          onDelete={confirmarEliminacion}
-          onEdit={setMovimientoEnEdicion}
-        />
+          <TransactionList
+            movimientos={movimientosFiltrados}
+            onDelete={confirmarEliminacion}
+            onEdit={setMovimientoEnEdicion}
+          />
+        </div>
       </div>
+
+      <MobileNavigation
+        activa={pestanaActiva}
+        onChange={setPestanaActiva}
+      />
 
       <EditMovementModal
         abierto={movimientoEnEdicion !== null}
