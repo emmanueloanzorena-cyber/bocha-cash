@@ -1,20 +1,25 @@
 "use client";
 
+import BochaChat from "@/components/BochaChat";
+import BochaCopilot from "@/components/BochaCopilot";
 import CategoryChart from "@/components/CategoryChart";
 import EditMovementModal from "@/components/EditMovementModal";
+import FinancialInsight from "@/components/FinancialInsight";
 import { Header } from "@/components/Header";
 import {
   PeriodFilter,
   type Periodo,
 } from "@/components/PeriodFilter";
 import { SearchBar } from "@/components/SearchBar";
+import StatsPanel from "@/components/StatsPanel";
 import { SummaryCard } from "@/components/SummaryCard";
 import TransactionList from "@/components/TransactionList";
+import { financialEngine } from "@/engine/financialEngine";
+import { generarInsights } from "@/engine/insights";
 import { useMovements } from "@/hooks/useMovements";
 import type { Movimiento } from "@/types/movement";
 import { formatoMoneda } from "@/utils/money";
 import { useState } from "react";
-
 
 export default function Home() {
   const [texto, setTexto] = useState("");
@@ -72,7 +77,10 @@ export default function Home() {
       haceSieteDias.setHours(0, 0, 0, 0);
       haceSieteDias.setDate(hoy.getDate() - 7);
 
-      return fechaMovimiento >= haceSieteDias && fechaMovimiento <= hoy;
+      return (
+        fechaMovimiento >= haceSieteDias &&
+        fechaMovimiento <= hoy
+      );
     }
 
     if (periodo === "mes") {
@@ -89,49 +97,8 @@ export default function Home() {
     return true;
   });
 
-  const ingresosFiltrados = movimientosFiltrados
-    .filter((movimiento) => movimiento.tipo === "ingreso")
-    .reduce(
-      (acumulado, movimiento) => acumulado + movimiento.monto,
-      0
-    );
-
-  const gastosFiltrados = movimientosFiltrados
-    .filter((movimiento) => movimiento.tipo === "gasto")
-    .reduce(
-      (acumulado, movimiento) => acumulado + movimiento.monto,
-      0
-    );
-
-  const saldoFiltrado = ingresosFiltrados - gastosFiltrados;
-
-  const datosGrafico = Object.values(
-    movimientosFiltrados
-      .filter((movimiento) => movimiento.tipo === "gasto")
-      .reduce(
-        (acumulado, movimiento) => {
-          const categoria = movimiento.categoria || "Otros";
-
-          if (!acumulado[categoria]) {
-            acumulado[categoria] = {
-              categoria,
-              total: 0,
-            };
-          }
-
-          acumulado[categoria].total += movimiento.monto;
-
-          return acumulado;
-        },
-        {} as Record<
-          string,
-          {
-            categoria: string;
-            total: number;
-          }
-        >
-      )
-  );
+  const analisis = financialEngine(movimientosFiltrados);
+  const insights = generarInsights(analisis);
 
   function enviarMovimiento() {
     if (!texto.trim()) {
@@ -141,7 +108,9 @@ export default function Home() {
     const guardado = agregarMovimiento(texto);
 
     if (!guardado) {
-      alert("No pude detectar el monto. Probá: Gasté 5500 en carne");
+      alert(
+        "No pude detectar el monto. Probá: Gasté 5500 en carne"
+      );
       return;
     }
 
@@ -164,7 +133,9 @@ export default function Home() {
     }
   }
 
-  function guardarEdicion(movimientoActualizado: Movimiento) {
+  function guardarEdicion(
+    movimientoActualizado: Movimiento
+  ) {
     const { id, ...cambios } = movimientoActualizado;
 
     editarMovimiento(id, cambios);
@@ -191,18 +162,18 @@ export default function Home() {
         <section className="grid gap-5 md:grid-cols-3">
           <SummaryCard
             titulo="Saldo estimado"
-            valor={formatoMoneda(saldoFiltrado)}
+            valor={formatoMoneda(analisis.saldo)}
           />
 
           <SummaryCard
             titulo="Ingresos"
-            valor={formatoMoneda(ingresosFiltrados)}
+            valor={formatoMoneda(analisis.ingresos)}
             color="text-emerald-400"
           />
 
           <SummaryCard
             titulo="Gastos"
-            valor={formatoMoneda(gastosFiltrados)}
+            valor={formatoMoneda(analisis.gastos)}
             color="text-red-400"
           />
         </section>
@@ -242,25 +213,50 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="rounded-3xl bg-slate-900 p-6">
-            <h3 className="text-2xl font-bold">
-              Bocha dice
-            </h3>
-
-            <p className="mt-4 text-slate-400">
-              {movimientosFiltrados.length === 0
-                ? "No hay movimientos para este filtro."
-                : `Encontré ${
-                    movimientosFiltrados.length
-                  } movimientos. Tus gastos son ${formatoMoneda(
-                    gastosFiltrados
-                  )}.`}
-            </p>
-          </div>
+          <FinancialInsight
+            gastos={analisis.gastos}
+            movimientos={analisis.cantidadMovimientos}
+            categorias={analisis.categorias}
+            medioPagoPrincipal={analisis.medioPagoPrincipal}
+          />
         </section>
 
+        <StatsPanel
+          movimientos={movimientosFiltrados}
+          gastos={analisis.gastos}
+          categorias={analisis.categorias}
+          medioPagoPrincipal={analisis.medioPagoPrincipal}
+        />
+
         <section className="mt-8">
-          <CategoryChart data={datosGrafico} />
+          <CategoryChart data={analisis.categorias} />
+        </section>
+
+        <BochaCopilot insights={insights} />
+
+        <BochaChat analisis={analisis} />
+
+        <section className="mt-8 rounded-3xl bg-slate-900 p-6">
+          <h3 className="text-2xl font-bold">
+            Consejos de Bocha
+          </h3>
+
+          {analisis.consejos.length === 0 ? (
+            <p className="mt-4 text-slate-400">
+              Todavía no hay consejos disponibles.
+            </p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {analisis.consejos.map((consejo) => (
+                <div
+                  key={consejo}
+                  className="rounded-2xl bg-slate-800 p-4 text-slate-300"
+                >
+                  {consejo}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <TransactionList
