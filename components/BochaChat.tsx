@@ -44,11 +44,10 @@ export default function BochaChat({
       texto,
     };
 
-    const respuesta = responderPregunta(
-      texto,
-      analisis,
-      movimientos
-    );
+    const respuesta = responderPregunta(texto, {
+  analisis,
+  movimientos,
+});
 
     const mensajeBocha: Mensaje = {
       id: Date.now() + 1,
